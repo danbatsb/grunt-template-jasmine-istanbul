@@ -28,6 +28,27 @@ var getUri = function (file) {
 	return file.replace(/\\{1,2}/g, '/');
 };
 
+
+var copySources = function (sources, tmp) {
+    var instrumenter = new istanbul.Instrumenter();
+    var instrumentedSources = [];
+    sources.forEach(function (source) {
+        var tmpSource = source,
+            contents = grunt.file.read(source);
+
+        // don't try to write "C:" as part of a folder name on Windows
+        if (process.platform == 'win32') {
+            tmpSource = tmpSource.replace(/^([a-z]):/i, '$1');
+        }
+        tmpSource = path.join(tmp, tmpSource);
+        grunt.file.write(tmpSource, contents);
+        instrumentedSources.push(tmpSource);
+    });
+    return instrumentedSources;
+};
+
+
+
 /**
  * Instruments the specified source and moves the instrumented source to the
  * temporary location, recreating the original directory structure.
@@ -224,6 +245,17 @@ exports.process = function (grunt, task, context) {
 			return source;
 		});
 	}
+
+    // Copy any additional files we need, not instrumenting these
+	var copysources = [];
+	if (context.options.srcCopy) {
+	    context.options.srcCopy.forEach(function (source) {
+	        copysources.push(path.join(outputDirectory, source))
+	    });
+	    copySources(copysources, context.temp);
+	}
+
+
 	// listen to coverage event dispatched by reporter
 	task.phantomjs.on('jasmine.coverage', function (coverage) {
 		var collector = new istanbul.Collector();
